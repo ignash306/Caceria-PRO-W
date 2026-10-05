@@ -180,6 +180,76 @@
       color: #fff;
     }
 
+    /* ESTILOS DE LA BRÚJULA FOX AHEAD */
+    .compass-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 15px 0;
+    }
+
+    .compass-dial {
+      position: relative;
+      width: 210px;
+      height: 210px;
+      border-radius: 50%;
+      border: 4px solid var(--border-color);
+      background: radial-gradient(circle, #1e272c 60%, #12181b 100%);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .compass-label {
+      position: absolute;
+      font-weight: bold;
+      font-size: 0.85rem;
+      color: var(--subtext-color);
+    }
+    .compass-label.n { top: 6px; color: var(--danger-color); }
+    .compass-label.e { right: 8px; }
+    .compass-label.s { bottom: 6px; }
+    .compass-label.w { left: 8px; }
+
+    .compass-needle {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s ease-out;
+      transform-origin: center center;
+    }
+
+    .needle-north {
+      width: 0;
+      height: 0;
+      border-left: 9px solid transparent;
+      border-right: 9px solid transparent;
+      border-bottom: 80px solid var(--accent-color);
+    }
+
+    .needle-south {
+      width: 0;
+      height: 0;
+      border-left: 9px solid transparent;
+      border-right: 9px solid transparent;
+      border-top: 60px solid #4a5568;
+    }
+
+    .compass-center-dot {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background-color: var(--text-color);
+      border: 2px solid var(--card-bg);
+      border-radius: 50%;
+      z-index: 5;
+    }
+
     .recent-item {
       display: flex;
       justify-content: space-between;
@@ -332,7 +402,7 @@
         <div class="section-title">• Modo Automático</div>
 
         <p style="font-size: 0.8rem; color: var(--subtext-color); margin-bottom: 10px;">
-          Toma la posición actual GPS, el rumbo del dispositivo y la longitud configurada.
+          Toma la posición actual GPS, el rumbo del movimiento y la longitud configurada.
         </p>
 
         <button class="btn" onclick="generarDireccionalAuto()">
@@ -499,18 +569,76 @@
     <!-- TAB 3: FOX AHEAD -->
     <div id="tab-fox" class="tab-content">
 
-      <div
-        class="section-card"
-        style="text-align: center; padding: 40px 15px;"
-      >
+      <div class="section-card">
 
-        <div class="section-title">
-          Fox Ahead
+        <div class="section-title">• Selección de Objetivo</div>
+
+        <div class="input-group">
+          <label>Cargar Punto Objetivo desde KML / KMZ</label>
+          <input
+            type="file"
+            id="fox-file-input"
+            accept=".kml,.kmz"
+            onchange="cargarArchivoFox(event)"
+          >
         </div>
 
-        <p style="color: var(--subtext-color);">
-          Este apartado se encuentra actualmente en desarrollo.
-        </p>
+        <div class="input-group">
+          <label>Coordenadas Objetivo (Lat, Long)</label>
+          <div class="input-row">
+            <input
+              type="text"
+              id="fox-target-coords"
+              class="coordinate-input"
+              placeholder="40.369790, -0.180250"
+              inputmode="decimal"
+              autocomplete="off"
+              oninput="actualizarTargetFoxManual()"
+            >
+          </div>
+          <div class="coordinate-help">
+            Formato: latitud, longitud
+          </div>
+        </div>
+
+      </div>
+
+      <div class="section-card" style="text-align: center;">
+
+        <div class="section-title">• Brújula Fox Ahead (Avance Coche)</div>
+
+        <div class="compass-container">
+          <div class="compass-dial">
+            <span class="compass-label n">N</span>
+            <span class="compass-label e">E</span>
+            <span class="compass-label s">S</span>
+            <span class="compass-label w">W</span>
+            <div class="compass-needle" id="fox-needle">
+              <div class="needle-north"></div>
+              <div class="needle-south"></div>
+            </div>
+            <div class="compass-center-dot"></div>
+          </div>
+        </div>
+
+        <div class="gps-data-grid" style="grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px;">
+
+          <div class="gps-data-box">
+            <div>Distancia:</div>
+            <div class="gps-data-val" id="fox-dist-val">--</div>
+          </div>
+
+          <div class="gps-data-box">
+            <div>Rumbo a Objetivo:</div>
+            <div class="gps-data-val" id="fox-bearing-val">--°</div>
+          </div>
+
+          <div class="gps-data-box" style="grid-column: span 2;">
+            <div>Coordenadas Objetivo:</div>
+            <div class="gps-data-val" id="fox-target-val">Sin seleccionar</div>
+          </div>
+
+        </div>
 
       </div>
 
@@ -662,7 +790,7 @@
       <div class="gps-data-box">
 
         <div>
-          Rumbo:
+          Rumbo Avance (GPS):
         </div>
 
         <div
@@ -682,9 +810,16 @@
 
     let currentLat = null;
     let currentLon = null;
+    let prevLat = null;
+    let prevLon = null;
+
     let currentHeading = 0;
     let watchPositionId = null;
     let isGpsActive = false;
+
+    // Coordenadas objetivo para Fox Ahead
+    let foxTargetLat = null;
+    let foxTargetLon = null;
 
     let countDireccional = 1;
     let countPunto = 1;
@@ -729,53 +864,9 @@
     function startGPS() {
 
       if (!navigator.geolocation) {
-
-        alert(
-          "La geolocalización no es compatible con este navegador."
-        );
-
+        alert("La geolocalización no es compatible con este navegador.");
         return;
       }
-
-
-      if (
-        typeof DeviceOrientationEvent !== 'undefined' &&
-        typeof DeviceOrientationEvent.requestPermission === 'function'
-      ) {
-
-        DeviceOrientationEvent.requestPermission()
-
-          .then(response => {
-
-            if (response === 'granted') {
-
-              window.addEventListener(
-                'deviceorientation',
-                handleOrientation,
-                true
-              );
-
-            }
-
-          })
-
-          .catch(console.error);
-
-      } else {
-
-        window.addEventListener(
-          'deviceorientationabsolute',
-          handleOrientation,
-          true
-        );
-
-        window.addEventListener(
-          'deviceorientation',
-          handleOrientation,
-          true
-        );
-      }
-
 
       watchPositionId = navigator.geolocation.watchPosition(
 
@@ -784,47 +875,55 @@
           currentLat = position.coords.latitude;
           currentLon = position.coords.longitude;
 
+          let calculatedGpsHeading = null;
 
+          // 1. Intentar obtener el rumbo que proporciona el hardware GPS
           if (
             position.coords.heading !== null &&
             !isNaN(position.coords.heading)
           ) {
-
-            currentHeading = position.coords.heading;
+            calculatedGpsHeading = position.coords.heading;
+          } 
+          // 2. Si el hardware no entrega rumbo (o es null), calcular rumbo vectorial entre el punto anterior y actual
+          else if (prevLat !== null && prevLon !== null) {
+            const distMoved = calculateDistanceMeters(prevLat, prevLon, currentLat, currentLon);
+            
+            // Requerir al menos 2 metros de desplazamiento para evitar variaciones ruidosas estando parado
+            if (distMoved > 2) {
+              calculatedGpsHeading = calculateBearing(prevLat, prevLon, currentLat, currentLon);
+            }
           }
 
+          // Si obtuvimos un rumbo válido por movimiento, lo actualizamos
+          if (calculatedGpsHeading !== null) {
+            currentHeading = calculatedGpsHeading;
+            document.getElementById('gps-heading').innerText = `${Math.round(currentHeading)}°`;
+          } else if (prevLat === null) {
+            document.getElementById('gps-heading').innerText = `--° (En espera de avance)`;
+          }
+
+          // Guardar posición anterior
+          prevLat = currentLat;
+          prevLon = currentLon;
 
           document.getElementById('gps-coords').innerText =
             `${currentLat.toFixed(6)}, ${currentLon.toFixed(6)}`;
 
-          document.getElementById('gps-heading').innerText =
-            `${Math.round(currentHeading)}°`;
-
-
-          document
-            .getElementById('gps-dot')
-            .classList.add('active');
-
-          document
-            .getElementById('gps-text')
-            .innerText = 'Activo';
+          document.getElementById('gps-dot').classList.add('active');
+          document.getElementById('gps-text').innerText = 'Activo';
 
           isGpsActive = true;
+
+          // Actualizar brújula Fox Ahead
+          updateFoxCompass();
 
         },
 
 
         (error) => {
-
           console.error("Error GPS:", error);
-
-          alert(
-            "Error al obtener señal GPS: " +
-            error.message
-          );
-
+          alert("Error al obtener señal GPS: " + error.message);
           stopGPS();
-
         },
 
 
@@ -842,95 +941,26 @@
     function stopGPS() {
 
       if (watchPositionId !== null) {
-
-        navigator.geolocation.clearWatch(
-          watchPositionId
-        );
-
+        navigator.geolocation.clearWatch(watchPositionId);
         watchPositionId = null;
       }
 
-
-      window.removeEventListener(
-        'deviceorientation',
-        handleOrientation,
-        true
-      );
-
-      window.removeEventListener(
-        'deviceorientationabsolute',
-        handleOrientation,
-        true
-      );
-
-
-      document
-        .getElementById('gps-dot')
-        .classList.remove('active');
-
-      document
-        .getElementById('gps-text')
-        .innerText = 'Desconectado';
-
-      document
-        .getElementById('gps-coords')
-        .innerText = '-- , --';
-
-      document
-        .getElementById('gps-heading')
-        .innerText = '--°';
+      document.getElementById('gps-dot').classList.remove('active');
+      document.getElementById('gps-text').innerText = 'Desconectado';
+      document.getElementById('gps-coords').innerText = '-- , --';
+      document.getElementById('gps-heading').innerText = '--°';
 
       isGpsActive = false;
-    }
+      prevLat = null;
+      prevLon = null;
 
-
-    function handleOrientation(event) {
-
-      let compass = null;
-
-
-      if (event.webkitCompassHeading) {
-
-        compass = event.webkitCompassHeading;
-
-      } else if (event.alpha !== null) {
-
-        compass = 360 - event.alpha;
-      }
-
-
-      if (
-        compass !== null &&
-        !isNaN(compass)
-      ) {
-
-        currentHeading = compass;
-
-        document
-          .getElementById('gps-heading')
-          .innerText =
-          `${Math.round(currentHeading)}°`;
-      }
-
+      updateFoxCompass();
     }
 
 
     // ============================================================
-    // COORDENADAS
+    // COORDENADAS Y CÁLCULOS
     // ============================================================
-
-    /*
-      Convierte un texto como:
-
-      40.369790722252084, -0.1802500158039835
-
-      en:
-
-      {
-        lat: 40.369790722252084,
-        lon: -0.1802500158039835
-      }
-    */
 
     function parseCoordinates(value) {
 
@@ -938,105 +968,73 @@
         return null;
       }
 
-
       const parts = value
         .trim()
         .split(/\s*,\s*/);
-
 
       if (parts.length !== 2) {
         return null;
       }
 
-
       const lat = parseFloat(parts[0]);
       const lon = parseFloat(parts[1]);
 
-
-      if (
-        isNaN(lat) ||
-        isNaN(lon)
-      ) {
+      if (isNaN(lat) || isNaN(lon)) {
         return null;
       }
 
-
-      if (
-        lat < -90 ||
-        lat > 90
-      ) {
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
         return null;
       }
 
-
-      if (
-        lon < -180 ||
-        lon > 180
-      ) {
-        return null;
-      }
-
-
-      return {
-        lat: lat,
-        lon: lon
-      };
+      return { lat, lon };
     }
 
 
-    /*
-      Coloca las coordenadas en un único campo:
-
-      lat, lon
-    */
-
-    function setCoordinateInput(
-      inputId,
-      lat,
-      lon
-    ) {
-
-      const input =
-        document.getElementById(inputId);
-
-      if (!input) {
-        return;
-      }
-
-
-      input.value =
-        `${lat}, ${lon}`;
+    function setCoordinateInput(inputId, lat, lon) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      input.value = `${lat}, ${lon}`;
     }
 
 
-    /*
-      Captura el GPS actual y lo coloca
-      directamente en el campo unificado.
-    */
-
-    function capturarGpsEnManual(
-      inputId
-    ) {
-
-      if (
-        !isGpsActive ||
-        currentLat === null ||
-        currentLon === null
-      ) {
-
-        alert(
-          "El GPS debe estar ACTIVO para capturar la posición actual."
-        );
-
+    function capturarGpsEnManual(inputId) {
+      if (!isGpsActive || currentLat === null || currentLon === null) {
+        alert("El GPS debe estar ACTIVO para capturar la posición actual.");
         return;
       }
 
+      setCoordinateInput(inputId, currentLat, currentLon);
+    }
 
-      setCoordinateInput(
-        inputId,
-        currentLat,
-        currentLon
-      );
+
+    // Calcula rumbo/bearing (0°-360°) de punto A a punto B
+    function calculateBearing(lat1, lon1, lat2, lon2) {
+      const radLat1 = lat1 * Math.PI / 180;
+      const radLat2 = lat2 * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+
+      const y = Math.sin(dLon) * Math.cos(radLat2);
+      const x = Math.cos(radLat1) * Math.sin(radLat2) -
+                Math.sin(radLat1) * Math.cos(radLat2) * Math.cos(dLon);
+
+      let brng = Math.atan2(y, x) * 180 / Math.PI;
+      return (brng + 360) % 360;
+    }
+
+
+    // Calcula distancia en metros usando la fórmula de Haversine
+    function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
     }
 
 
@@ -1046,834 +1044,402 @@
 
     async function readKmlOrKmzFile(file) {
 
-      const fileName =
-        file.name.toLowerCase();
-
+      const fileName = file.name.toLowerCase();
       let kmlText = "";
-
 
       if (fileName.endsWith('.kmz')) {
 
-        if (
-          typeof JSZip === 'undefined'
-        ) {
-
-          throw new Error(
-            "La librería JSZip no está cargada para procesar archivos KMZ."
-          );
+        if (typeof JSZip === 'undefined') {
+          throw new Error("La librería JSZip no está cargada.");
         }
-
 
         const zip = new JSZip();
+        const zipContent = await zip.loadAsync(file);
 
-        const zipContent =
-          await zip.loadAsync(file);
-
-
-        let kmlFileName =
-          Object.keys(zipContent.files)
-            .find(
-              name =>
-                name
-                  .toLowerCase()
-                  .endsWith('.kml')
-            );
-
+        let kmlFileName = Object.keys(zipContent.files).find(
+          name => name.toLowerCase().endsWith('.kml')
+        );
 
         if (!kmlFileName) {
-
-          throw new Error(
-            "No se encontró ningún archivo .kml dentro del archivo .kmz."
-          );
+          throw new Error("No se encontró ningún archivo .kml en el .kmz.");
         }
 
-
-        kmlText =
-          await zipContent
-            .files[kmlFileName]
-            .async("string");
+        kmlText = await zipContent.files[kmlFileName].async("string");
 
       } else {
 
-        kmlText =
-          await new Promise(
-            (resolve, reject) => {
+        kmlText = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.onerror = (e) => reject(e);
+          reader.readAsText(file);
+        });
 
-              const reader =
-                new FileReader();
-
-              reader.onload =
-                (e) =>
-                  resolve(
-                    e.target.result
-                  );
-
-              reader.onerror =
-                (e) =>
-                  reject(e);
-
-              reader.readAsText(file);
-
-            }
-          );
       }
 
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(kmlText, "text/xml");
 
-      const parser =
-        new DOMParser();
+      const coordsElements = xmlDoc.getElementsByTagName("coordinates");
 
-      const xmlDoc =
-        parser.parseFromString(
-          kmlText,
-          "text/xml"
-        );
-
-
-      const coordsElements =
-        xmlDoc.getElementsByTagName(
-          "coordinates"
-        );
-
-
-      if (
-        !coordsElements ||
-        coordsElements.length === 0
-      ) {
-
-        throw new Error(
-          "No se encontraron elementos <coordinates> en el archivo."
-        );
+      if (!coordsElements || coordsElements.length === 0) {
+        throw new Error("No se encontraron coordenadas en el archivo KML.");
       }
 
+      const coordsText = coordsElements[0].textContent.trim();
+      const firstCoordStr = coordsText.split(/\s+/)[0].split(',');
 
-      const coordsText =
-        coordsElements[0]
-          .textContent
-          .trim();
-
-
-      const firstCoordStr =
-        coordsText
-          .split(/\s+/)[0]
-          .split(',');
-
-
-      if (
-        firstCoordStr.length < 2
-      ) {
-
-        throw new Error(
-          "Formato de coordenadas no válido."
-        );
+      if (firstCoordStr.length < 2) {
+        throw new Error("Formato de coordenadas no válido.");
       }
-
 
       return {
-
-        lon:
-          parseFloat(
-            firstCoordStr[0]
-          ),
-
-        lat:
-          parseFloat(
-            firstCoordStr[1]
-          )
-
+        lon: parseFloat(firstCoordStr[0]),
+        lat: parseFloat(firstCoordStr[1])
       };
     }
 
 
     // ============================================================
-    // CARGAR DESTINO DESDE KML/KMZ
+    // FOX AHEAD LOGIC
+    // ============================================================
+
+    async function cargarArchivoFox(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      try {
+        const coords = await readKmlOrKmzFile(file);
+        foxTargetLat = coords.lat;
+        foxTargetLon = coords.lon;
+
+        setCoordinateInput('fox-target-coords', coords.lat, coords.lon);
+        updateFoxCompass();
+
+        alert(`Objetivo cargado exitosamente:\nLat: ${coords.lat}\nLon: ${coords.lon}`);
+      } catch (err) {
+        alert("Error al procesar KML/KMZ: " + err.message);
+      }
+    }
+
+
+    function actualizarTargetFoxManual() {
+      const coords = parseCoordinates(
+        document.getElementById('fox-target-coords').value
+      );
+
+      if (coords) {
+        foxTargetLat = coords.lat;
+        foxTargetLon = coords.lon;
+        updateFoxCompass();
+      }
+    }
+
+
+    function updateFoxCompass() {
+      const needle = document.getElementById('fox-needle');
+      const distVal = document.getElementById('fox-dist-val');
+      const bearingVal = document.getElementById('fox-bearing-val');
+      const targetVal = document.getElementById('fox-target-val');
+
+      if (foxTargetLat === null || foxTargetLon === null) {
+        distVal.innerText = '--';
+        bearingVal.innerText = '--°';
+        targetVal.innerText = 'Sin seleccionar';
+        if (needle) needle.style.transform = 'rotate(0deg)';
+        return;
+      }
+
+      targetVal.innerText = `${foxTargetLat.toFixed(6)}, ${foxTargetLon.toFixed(6)}`;
+
+      if (currentLat === null || currentLon === null) {
+        distVal.innerText = 'GPS inactivo';
+        bearingVal.innerText = '--°';
+        if (needle) needle.style.transform = 'rotate(0deg)';
+        return;
+      }
+
+      // 1. Calcular Rumbo Geográfico y Distancia hacia el objetivo
+      const bearingToTarget = calculateBearing(currentLat, currentLon, foxTargetLat, foxTargetLon);
+      const distMeters = calculateDistanceMeters(currentLat, currentLon, foxTargetLat, foxTargetLon);
+
+      // 2. Formatear Distancia
+      if (distMeters >= 1000) {
+        distVal.innerText = `${(distMeters / 1000).toFixed(2)} km`;
+      } else {
+        distVal.innerText = `${Math.round(distMeters)} m`;
+      }
+
+      bearingVal.innerText = `${Math.round(bearingToTarget)}°`;
+
+      // 3. Ángulo de la aguja relativo al rumbo de avance del coche (GPS COG)
+      // La parte superior del teléfono apuntará al "frente del coche", por lo que:
+      // Ángulo relativo = Rumbo al objetivo - Rumbo actual del coche
+      const relativeAngle = bearingToTarget - currentHeading;
+
+      if (needle) {
+        needle.style.transform = `rotate(${relativeAngle}deg)`;
+      }
+    }
+
+
+    // ============================================================
+    // CARGAR DESTINO / CENTRO
     // ============================================================
 
     async function cargarArchivoDestino(event) {
-
-      const file =
-        event.target.files[0];
-
-      if (!file) {
-        return;
-      }
-
+      const file = event.target.files[0];
+      if (!file) return;
 
       try {
-
-        const coords =
-          await readKmlOrKmzFile(file);
-
-
-        setCoordinateInput(
-          'dir-manual-dest-coords',
-          coords.lat,
-          coords.lon
-        );
-
-
-        alert(
-          `Coordenadas cargadas exitosamente desde ${file.name}:\n` +
-          `Lat: ${coords.lat}\n` +
-          `Lon: ${coords.lon}`
-        );
-
-
+        const coords = await readKmlOrKmzFile(file);
+        setCoordinateInput('dir-manual-dest-coords', coords.lat, coords.lon);
+        alert(`Coordenadas cargadas:\nLat: ${coords.lat}\nLon: ${coords.lon}`);
       } catch (err) {
-
-        alert(
-          "Error al leer el archivo KML/KMZ: " +
-          err.message
-        );
-
+        alert("Error al leer el archivo KML/KMZ: " + err.message);
       }
-
     }
 
-
-    // ============================================================
-    // CARGAR CENTRO DEL CÍRCULO DESDE KML/KMZ
-    // ============================================================
 
     async function cargarArchivoCentroCirculo(event) {
-
-      const file =
-        event.target.files[0];
-
-      if (!file) {
-        return;
-      }
-
+      const file = event.target.files[0];
+      if (!file) return;
 
       try {
-
-        const coords =
-          await readKmlOrKmzFile(file);
-
-
-        setCoordinateInput(
-          'circ-coords',
-          coords.lat,
-          coords.lon
-        );
-
-
-        alert(
-          `Centro cargado exitosamente desde ${file.name}:\n` +
-          `Lat: ${coords.lat}\n` +
-          `Lon: ${coords.lon}`
-        );
-
-
+        const coords = await readKmlOrKmzFile(file);
+        setCoordinateInput('circ-coords', coords.lat, coords.lon);
+        alert(`Centro cargado:\nLat: ${coords.lat}\nLon: ${coords.lon}`);
       } catch (err) {
-
-        alert(
-          "Error al leer el archivo KML/KMZ: " +
-          err.message
-        );
-
+        alert("Error al leer el archivo KML/KMZ: " + err.message);
       }
-
     }
 
 
     // ============================================================
-    // CALCULAR DESTINO
+    // CALCULAR DESTINO (LÍNEA DIRECCIONAL)
     // ============================================================
 
-    function calculateDestinationPoint(
-      lat,
-      lon,
-      brng,
-      distanceMeters
-    ) {
-
+    function calculateDestinationPoint(lat, lon, brng, distanceMeters) {
       const R = 6371000;
+      const radLat = lat * Math.PI / 180;
+      const radLon = lon * Math.PI / 180;
+      const radBrng = brng * Math.PI / 180;
+      const d = distanceMeters / R;
 
-      const radLat =
-        lat * Math.PI / 180;
+      const lat2 = Math.asin(
+        Math.sin(radLat) * Math.cos(d) +
+        Math.cos(radLat) * Math.sin(d) * Math.cos(radBrng)
+      );
 
-      const radLon =
-        lon * Math.PI / 180;
-
-      const radBrng =
-        brng * Math.PI / 180;
-
-      const d =
-        distanceMeters / R;
-
-
-      const lat2 =
-        Math.asin(
-
-          Math.sin(radLat) *
-          Math.cos(d)
-
-          +
-
-          Math.cos(radLat) *
-          Math.sin(d) *
-          Math.cos(radBrng)
-
-        );
-
-
-      const lon2 =
-        radLon +
-
-        Math.atan2(
-
-          Math.sin(radBrng) *
-          Math.sin(d) *
-          Math.cos(radLat),
-
-          Math.cos(d) -
-          Math.sin(radLat) *
-          Math.sin(lat2)
-
-        );
-
+      const lon2 = radLon + Math.atan2(
+        Math.sin(radBrng) * Math.sin(d) * Math.cos(radLat),
+        Math.cos(d) - Math.sin(radLat) * Math.sin(lat2)
+      );
 
       return {
-
-        lat:
-          lat2 *
-          180 /
-          Math.PI,
-
-        lon:
-          lon2 *
-          180 /
-          Math.PI
-
+        lat: lat2 * 180 / Math.PI,
+        lon: lon2 * 180 / Math.PI
       };
-
     }
 
 
-    // ============================================================
-    // COLOR KML
-    // ============================================================
-
     function hexToKmlColor(hex) {
-
-      let cleanHex =
-        hex.replace('#', '');
-
-
-      if (
-        cleanHex.length === 6
-      ) {
-
-        let r =
-          cleanHex.substring(0, 2);
-
-        let g =
-          cleanHex.substring(2, 4);
-
-        let b =
-          cleanHex.substring(4, 6);
-
-
+      let cleanHex = hex.replace('#', '');
+      if (cleanHex.length === 6) {
+        let r = cleanHex.substring(0, 2);
+        let g = cleanHex.substring(2, 4);
+        let b = cleanHex.substring(4, 6);
         return `ff${b}${g}${r}`;
       }
-
-
       return 'ff0000ff';
     }
 
 
-    // ============================================================
-    // DESCARGAR KML
-    // ============================================================
-
-    function downloadKML(
-      fileName,
-      content
-    ) {
-
-      const blob =
-        new Blob(
-          [content],
-          {
-            type:
-              'application/vnd.google-earth.kml+xml'
-          }
-        );
-
-
-      const url =
-        URL.createObjectURL(blob);
-
+    function downloadKML(fileName, content) {
+      const blob = new Blob([content], { type: 'application/vnd.google-earth.kml+xml' });
+      const url = URL.createObjectURL(blob);
 
       const fileRecord = {
-
-        id:
-          Date.now(),
-
-        name:
-          fileName,
-
-        date:
-          new Date()
-            .toLocaleTimeString(
-              [],
-              {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-              }
-            ),
-
-        content:
-          content
-
+        id: Date.now(),
+        name: fileName,
+        date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        content: content
       };
 
-
-      recentFiles.unshift(
-        fileRecord
-      );
-
-
+      recentFiles.unshift(fileRecord);
       renderRecentFiles();
 
-
-      const a =
-        document.createElement('a');
-
+      const a = document.createElement('a');
       a.href = url;
-
-      a.download =
-        fileName;
-
+      a.download = fileName;
       document.body.appendChild(a);
-
       a.click();
-
       document.body.removeChild(a);
-
       URL.revokeObjectURL(url);
     }
 
 
     // ============================================================
-    // DIRECCIONAL AUTOMÁTICO
+    // GENERADORES KML
     // ============================================================
 
     function generarDireccionalAuto() {
-
-      if (
-        !isGpsActive ||
-        currentLat === null
-      ) {
-
-        alert(
-          "Activa el GPS primero para usar el modo Automático."
-        );
-
+      if (!isGpsActive || currentLat === null) {
+        alert("Activa el GPS primero para usar el modo Automático.");
         return;
       }
 
+      const length = parseFloat(document.getElementById('cfg-line-length').value) || 1000;
+      const kmlColor = hexToKmlColor(document.getElementById('cfg-line-color').value);
+      const dest = calculateDestinationPoint(currentLat, currentLon, currentHeading, length);
 
-      const length =
-        parseFloat(
-          document
-            .getElementById(
-              'cfg-line-length'
-            )
-            .value
-        ) || 1000;
-
-
-      const kmlColor =
-        hexToKmlColor(
-          document
-            .getElementById(
-              'cfg-line-color'
-            )
-            .value
-        );
-
-
-      const dest =
-        calculateDestinationPoint(
-          currentLat,
-          currentLon,
-          currentHeading,
-          length
-        );
-
-
-      const lineName =
-        `Direccional_${countDireccional}.kml`;
-
-
+      const lineName = `Direccional_${countDireccional}.kml`;
       const lineKml =
 `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
     <name>${lineName}</name>
-
     <Style id="lineStyle">
       <LineStyle>
         <color>${kmlColor}</color>
         <width>3</width>
       </LineStyle>
     </Style>
-
     <Placemark>
       <name>${lineName}</name>
       <styleUrl>#lineStyle</styleUrl>
-
       <LineString>
         <coordinates>${currentLon},${currentLat},0 ${dest.lon},${dest.lat},0</coordinates>
       </LineString>
-
     </Placemark>
-
   </Document>
 </kml>`;
 
+      downloadKML(lineName, lineKml);
 
-      downloadKML(
-        lineName,
-        lineKml
-      );
-
-
-      const pointName =
-        `Punto_${countPunto}.kml`;
-
-
+      const pointName = `Punto_${countPunto}.kml`;
       const pointKml =
 `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
-
     <name>${pointName}</name>
-
     <Placemark>
-
       <name>${pointName}</name>
-
       <Point>
         <coordinates>${dest.lon},${dest.lat},0</coordinates>
       </Point>
-
     </Placemark>
-
   </Document>
 </kml>`;
 
-
-      downloadKML(
-        pointName,
-        pointKml
-      );
-
+      downloadKML(pointName, pointKml);
 
       countDireccional++;
       countPunto++;
-
     }
 
 
-    // ============================================================
-    // DIRECCIONAL MANUAL
-    // ============================================================
-
     function generarDireccionalManual() {
+      const start = parseCoordinates(document.getElementById('dir-manual-coords').value);
+      const dest = parseCoordinates(document.getElementById('dir-manual-dest-coords').value);
 
-      const start =
-        parseCoordinates(
-          document
-            .getElementById(
-              'dir-manual-coords'
-            )
-            .value
-        );
-
-
-      const dest =
-        parseCoordinates(
-          document
-            .getElementById(
-              'dir-manual-dest-coords'
-            )
-            .value
-        );
-
-
-      if (!start) {
-
-        alert(
-          "Las coordenadas de origen no son válidas.\n\n" +
-          "Utiliza el formato:\n" +
-          "40.369790722252084, -0.1802500158039835"
-        );
-
+      if (!start || !dest) {
+        alert("Revisa que las coordenadas de Origen y Destino sean válidas.");
         return;
       }
 
-
-      if (!dest) {
-
-        alert(
-          "Las coordenadas de destino no son válidas.\n\n" +
-          "Utiliza el formato:\n" +
-          "40.369790722252084, -0.1802500158039835"
-        );
-
-        return;
-      }
-
-
-      const kmlColor =
-        hexToKmlColor(
-          document
-            .getElementById(
-              'cfg-line-color'
-            )
-            .value
-        );
-
-
-      const lineName =
-        `Direccional_${countDireccional}.kml`;
-
-
-      /*
-        IMPORTANTE:
-
-        El usuario escribe:
-
-        LAT, LON
-
-        pero KML necesita:
-
-        LON, LAT
-      */
+      const kmlColor = hexToKmlColor(document.getElementById('cfg-line-color').value);
+      const lineName = `Direccional_${countDireccional}.kml`;
 
       const lineKml =
 `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
-
     <name>${lineName}</name>
-
     <Style id="lineStyle">
       <LineStyle>
         <color>${kmlColor}</color>
         <width>3</width>
       </LineStyle>
     </Style>
-
     <Placemark>
-
       <name>${lineName}</name>
-
       <styleUrl>#lineStyle</styleUrl>
-
       <LineString>
-
-        <coordinates>
-          ${start.lon},${start.lat},0
-          ${dest.lon},${dest.lat},0
-        </coordinates>
-
+        <coordinates>${start.lon},${start.lat},0 ${dest.lon},${dest.lat},0</coordinates>
       </LineString>
-
     </Placemark>
-
   </Document>
 </kml>`;
 
+      downloadKML(lineName, lineKml);
 
-      downloadKML(
-        lineName,
-        lineKml
-      );
-
-
-      const pointName =
-        `Punto_${countPunto}.kml`;
-
-
+      const pointName = `Punto_${countPunto}.kml`;
       const pointKml =
 `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
-
   <Document>
-
     <name>${pointName}</name>
-
     <Placemark>
-
       <name>${pointName}</name>
-
       <Point>
-
-        <coordinates>
-          ${dest.lon},${dest.lat},0
-        </coordinates>
-
+        <coordinates>${dest.lon},${dest.lat},0</coordinates>
       </Point>
-
     </Placemark>
-
   </Document>
-
 </kml>`;
 
-
-      downloadKML(
-        pointName,
-        pointKml
-      );
-
+      downloadKML(pointName, pointKml);
 
       countDireccional++;
       countPunto++;
-
     }
 
 
-    // ============================================================
-    // CÍRCULO
-    // ============================================================
-
     function generarCirculo() {
-
-      const center =
-        parseCoordinates(
-          document
-            .getElementById(
-              'circ-coords'
-            )
-            .value
-        );
-
-
-      const radiusKm =
-        parseFloat(
-          document
-            .getElementById(
-              'cfg-circle-radius'
-            )
-            .value
-        ) || 1;
-
-
-      const radiusMeters =
-        radiusKm * 1000;
-
+      const center = parseCoordinates(document.getElementById('circ-coords').value);
+      const radiusKm = parseFloat(document.getElementById('cfg-circle-radius').value) || 1;
+      const radiusMeters = radiusKm * 1000;
 
       if (!center) {
-
-        alert(
-          "Las coordenadas del centro no son válidas.\n\n" +
-          "Utiliza el formato:\n" +
-          "40.369790722252084, -0.1802500158039835"
-        );
-
+        alert("Ingresa un centro válido.");
         return;
       }
 
-
-      const lat =
-        center.lat;
-
-      const lon =
-        center.lon;
-
-
-      const kmlColor =
-        hexToKmlColor(
-          document
-            .getElementById(
-              'cfg-line-color'
-            )
-            .value
-        );
-
-
+      const kmlColor = hexToKmlColor(document.getElementById('cfg-line-color').value);
       let coordPairs = [];
 
-
-      for (
-        let i = 0;
-        i <= 360;
-        i += 5
-      ) {
-
-        const pt =
-          calculateDestinationPoint(
-            lat,
-            lon,
-            i,
-            radiusMeters
-          );
-
-
-        coordPairs.push(
-          `${pt.lon},${pt.lat},0`
-        );
+      for (let i = 0; i <= 360; i += 5) {
+        const pt = calculateDestinationPoint(center.lat, center.lon, i, radiusMeters);
+        coordPairs.push(`${pt.lon},${pt.lat},0`);
       }
 
-
-      const circleName =
-        `Circulo_${countCirculo}.kml`;
-
-
+      const circleName = `Circulo_${countCirculo}.kml`;
       const circleKml =
 `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
-
   <Document>
-
     <name>${circleName}</name>
-
     <Style id="polyStyle">
-
       <LineStyle>
-
         <color>${kmlColor}</color>
         <width>3</width>
-
       </LineStyle>
-
     </Style>
-
-
     <Placemark>
-
       <name>${circleName}</name>
-
       <styleUrl>#polyStyle</styleUrl>
-
       <LineString>
-
         <coordinates>
 ${coordPairs.join('\n')}
         </coordinates>
-
       </LineString>
-
     </Placemark>
-
   </Document>
-
 </kml>`;
 
-
-      downloadKML(
-        circleName,
-        circleKml
-      );
-
-
+      downloadKML(circleName, circleKml);
       countCirculo++;
-
     }
 
 
@@ -1882,128 +1448,48 @@ ${coordPairs.join('\n')}
     // ============================================================
 
     function renderRecentFiles() {
+      const listContainer = document.getElementById('recent-files-list');
 
-      const listContainer =
-        document.getElementById(
-          'recent-files-list'
-        );
-
-
-      if (
-        recentFiles.length === 0
-      ) {
-
+      if (recentFiles.length === 0) {
         listContainer.innerHTML =
-          '<p style="font-size: 0.85rem; color: var(--subtext-color);">' +
-          'No se han generado archivos aún.' +
-          '</p>';
-
+          '<p style="font-size: 0.85rem; color: var(--subtext-color);">No se han generado archivos aún.</p>';
         return;
       }
 
-
-      listContainer.innerHTML =
-        recentFiles
-          .map(
-            (file, idx) => `
-
-              <div class="recent-item">
-
-                <div class="recent-info">
-
-                  <span class="recent-title">
-                    ${file.name}
-                  </span>
-
-                  <span class="recent-date">
-                    ${file.date}
-                  </span>
-
-                </div>
-
-
-                <div class="recent-actions">
-
-                  <button
-                    class="btn icon-btn"
-                    onclick="reDownloadFile(${file.id})">
-                    ABRIR
-                  </button>
-
-                  <button
-                    class="btn btn-danger icon-btn"
-                    onclick="deleteRecentFile(${file.id})">
-                    🗑
-                  </button>
-
-                </div>
-
-              </div>
-
-            `
-          )
-          .join('');
-
+      listContainer.innerHTML = recentFiles.map((file) => `
+        <div class="recent-item">
+          <div class="recent-info">
+            <span class="recent-title">${file.name}</span>
+            <span class="recent-date">${file.date}</span>
+          </div>
+          <div class="recent-actions">
+            <button class="btn icon-btn" onclick="reDownloadFile(${file.id})">ABRIR</button>
+            <button class="btn btn-danger icon-btn" onclick="deleteRecentFile(${file.id})">🗑</button>
+          </div>
+        </div>
+      `).join('');
     }
 
 
     function reDownloadFile(id) {
-
-      const file =
-        recentFiles.find(
-          f => f.id === id
-        );
-
-
+      const file = recentFiles.find(f => f.id === id);
       if (file) {
-
-        const blob =
-          new Blob(
-            [file.content],
-            {
-              type:
-                'application/vnd.google-earth.kml+xml'
-            }
-          );
-
-
-        const url =
-          URL.createObjectURL(blob);
-
-
-        const a =
-          document.createElement('a');
-
-
+        const blob = new Blob([file.content], { type: 'application/vnd.google-earth.kml+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
         a.href = url;
-
-        a.download =
-          file.name;
-
-
+        a.download = file.name;
         document.body.appendChild(a);
-
         a.click();
-
         document.body.removeChild(a);
-
         URL.revokeObjectURL(url);
-
       }
-
     }
 
 
     function deleteRecentFile(id) {
-
-      recentFiles =
-        recentFiles.filter(
-          f => f.id !== id
-        );
-
-
+      recentFiles = recentFiles.filter(f => f.id !== id);
       renderRecentFiles();
-
     }
 
   </script>
