@@ -101,12 +101,57 @@
       margin-bottom: 15px;
     }
 
+    /* ESTILOS PARA EL DESPLEGABLE (DETAILS / SUMMARY) */
+    details.section-card {
+      padding: 0;
+    }
+
+    details.section-card summary {
+      padding: 15px;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: bold;
+    }
+
+    details.section-card summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.section-card summary::after {
+      content: '▼';
+      font-size: 0.8rem;
+      color: var(--subtext-color);
+      transition: transform 0.2s ease;
+    }
+
+    details.section-card[open] summary::after {
+      transform: rotate(180deg);
+    }
+
+    details.section-card[open] summary {
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .details-content {
+      padding: 15px;
+    }
+
     .section-title {
       font-size: 1rem;
       color: var(--accent-color);
       margin-bottom: 12px;
       border-bottom: 1px solid var(--border-color);
       padding-bottom: 5px;
+    }
+
+    details.section-card summary.section-title {
+      margin-bottom: 0;
+      border-bottom: none;
+      padding-bottom: 0;
     }
 
     .input-group {
@@ -398,95 +443,70 @@
     <div id="tab-direccional" class="tab-content active">
 
       <div class="section-card">
-
         <div class="section-title">• Modo Automático</div>
-
         <p style="font-size: 0.8rem; color: var(--subtext-color); margin-bottom: 10px;">
           Toma la posición actual GPS, el rumbo del movimiento y la longitud configurada.
         </p>
-
         <button class="btn" onclick="generarDireccionalAuto()">
           Generar Direccional
         </button>
-
       </div>
 
-
       <div class="section-card">
-
         <div class="section-title">• Modo Manual</div>
 
         <!-- ORIGEN -->
         <div class="input-group">
-
           <label>Coordenadas Origen (Lat, Long)</label>
-
           <div class="input-row">
-
             <input
               type="text"
               id="dir-manual-coords"
               class="coordinate-input"
-              placeholder="40.369790722252084, -0.1802500158039835"
+              placeholder="40.369790, -0.180250"
               inputmode="decimal"
               autocomplete="off"
             >
-
             <button
               class="btn btn-secondary"
               style="width: auto;"
               onclick="capturarGpsEnManual('dir-manual-coords')">
               GPS
             </button>
-
           </div>
-
           <div class="coordinate-help">
             Formato: latitud, longitud
           </div>
-
         </div>
-
 
         <!-- DESTINO -->
         <div class="input-group">
-
           <label>Destino (Lat, Long)</label>
-
           <div class="input-row">
-
             <input
               type="text"
               id="dir-manual-dest-coords"
               class="coordinate-input"
-              placeholder="40.369790722252084, -0.1802500158039835"
+              placeholder="40.369790, -0.180250"
               inputmode="decimal"
               autocomplete="off"
             >
-
           </div>
-
           <div class="coordinate-help">
             Formato: latitud, longitud
           </div>
-
         </div>
-
 
         <!-- ARCHIVO KML/KMZ -->
         <div class="input-group">
-
           <label>Cargar Destino desde archivo KML / KMZ</label>
-
           <input
             type="file"
             id="kml-file-input"
             accept=".kml,.kmz"
             onchange="cargarArchivoDestino(event)"
           >
-
         </div>
-
 
         <button
           class="btn"
@@ -498,54 +518,40 @@
 
     </div>
 
-
     <!-- TAB 2: CIRCULO -->
     <div id="tab-circulo" class="tab-content">
 
       <div class="section-card">
-
         <div class="section-title">
           Generar Círculo KML
         </div>
 
-
         <div class="input-group">
-
           <label>Coordenadas del Centro (Lat, Long)</label>
-
           <div class="input-row">
-
             <input
               type="text"
               id="circ-coords"
               class="coordinate-input"
-              placeholder="40.369790722252084, -0.1802500158039835"
+              placeholder="40.369790, -0.180250"
               inputmode="decimal"
               autocomplete="off"
             >
-
           </div>
-
           <div class="coordinate-help">
             Formato: latitud, longitud
           </div>
-
         </div>
 
-
         <div class="input-group">
-
           <label>Cargar Centro desde archivo KML / KMZ</label>
-
           <input
             type="file"
             id="circ-file-input"
             accept=".kml,.kmz"
             onchange="cargarArchivoCentroCirculo(event)"
           >
-
         </div>
-
 
         <button
           class="btn btn-secondary"
@@ -554,54 +560,52 @@
           Capturar GPS Actual
         </button>
 
-
         <button
           class="btn"
           onclick="generarCirculo()">
           Generar Círculo
         </button>
-
       </div>
 
     </div>
 
-
     <!-- TAB 3: FOX AHEAD -->
     <div id="tab-fox" class="tab-content">
 
-      <div class="section-card">
-
-        <div class="section-title">• Selección de Objetivo</div>
-
-        <div class="input-group">
-          <label>Cargar Punto Objetivo desde KML / KMZ</label>
-          <input
-            type="file"
-            id="fox-file-input"
-            accept=".kml,.kmz"
-            onchange="cargarArchivoFox(event)"
-          >
-        </div>
-
-        <div class="input-group">
-          <label>Coordenadas Objetivo (Lat, Long)</label>
-          <div class="input-row">
+      <!-- DESPLEGABLE DE SELECCIÓN DE OBJETIVO -->
+      <details class="section-card">
+        <summary class="section-title">• Selección de Objetivo</summary>
+        
+        <div class="details-content">
+          <div class="input-group">
+            <label>Cargar Punto Objetivo desde KML / KMZ</label>
             <input
-              type="text"
-              id="fox-target-coords"
-              class="coordinate-input"
-              placeholder="40.369790, -0.180250"
-              inputmode="decimal"
-              autocomplete="off"
-              oninput="actualizarTargetFoxManual()"
+              type="file"
+              id="fox-file-input"
+              accept=".kml,.kmz"
+              onchange="cargarArchivoFox(event)"
             >
           </div>
-          <div class="coordinate-help">
-            Formato: latitud, longitud
+
+          <div class="input-group">
+            <label>Coordenadas Objetivo (Lat, Long)</label>
+            <div class="input-row">
+              <input
+                type="text"
+                id="fox-target-coords"
+                class="coordinate-input"
+                placeholder="40.369790, -0.180250"
+                inputmode="decimal"
+                autocomplete="off"
+                oninput="actualizarTargetFoxManual()"
+              >
+            </div>
+            <div class="coordinate-help">
+              Formato: latitud, longitud
+            </div>
           </div>
         </div>
-
-      </div>
+      </details>
 
       <div class="section-card" style="text-align: center;">
 
@@ -644,85 +648,58 @@
 
     </div>
 
-
     <!-- TAB 4: CONFIGURACION -->
     <div id="tab-config" class="tab-content">
 
       <div class="section-card">
-
         <div class="section-title">
           Configuración de Archivos KML
         </div>
 
-
         <div class="input-group">
-
-          <label>
-            Longitud de la línea Direccional (Metros)
-          </label>
-
+          <label>Longitud de la línea Direccional (Metros)</label>
           <input
             type="number"
             id="cfg-line-length"
             value="1000"
           >
-
         </div>
 
-
         <div class="input-group">
-
-          <label>
-            Radio del Círculo (Kilómetros)
-          </label>
-
+          <label>Radio del Círculo (Kilómetros)</label>
           <input
             type="number"
             id="cfg-circle-radius"
             value="1"
             step="0.1"
           >
-
         </div>
 
-
         <div class="input-group">
-
-          <label>
-            Color de las Líneas Generadas
-          </label>
-
+          <label>Color de las Líneas Generadas</label>
           <input
             type="color"
             id="cfg-line-color"
             value="#ff0000"
           >
-
         </div>
-
       </div>
 
-
       <div class="section-card">
-
         <div class="section-title">
           Archivos Recientes (Sesión Actual)
         </div>
 
         <div id="recent-files-list">
-
           <p style="font-size: 0.85rem; color: var(--subtext-color);">
             No se han generado archivos aún.
           </p>
-
         </div>
-
       </div>
 
     </div>
 
   </main>
-
 
   <button
     class="floating-config-btn"
@@ -731,80 +708,33 @@
     ⚙️
   </button>
 
-
   <footer>
 
     <div class="gps-header">
-
       <div class="gps-status-badge">
-
-        <div
-          class="status-dot"
-          id="gps-dot">
-        </div>
-
-        GPS:
-        <span id="gps-text">
-          Desconectado
-        </span>
-
+        <div class="status-dot" id="gps-dot"></div>
+        GPS: <span id="gps-text">Desconectado</span>
       </div>
-
 
       <div class="gps-controls">
-
-        <button
-          class="btn"
-          onclick="startGPS()">
-          START
-        </button>
-
-        <button
-          class="btn btn-danger"
-          onclick="stopGPS()">
-          STOP
-        </button>
-
+        <button class="btn" onclick="startGPS()">START</button>
+        <button class="btn btn-danger" onclick="stopGPS()">STOP</button>
       </div>
-
     </div>
 
-
     <div class="gps-data-grid">
-
       <div class="gps-data-box">
-
-        <div>
-          Coordenadas:
-        </div>
-
-        <div
-          class="gps-data-val"
-          id="gps-coords">
-          -- , --
-        </div>
-
+        <div>Coordenadas:</div>
+        <div class="gps-data-val" id="gps-coords">-- , --</div>
       </div>
 
-
       <div class="gps-data-box">
-
-        <div>
-          Rumbo Avance (GPS):
-        </div>
-
-        <div
-          class="gps-data-val"
-          id="gps-heading">
-          --°
-        </div>
-
+        <div>Rumbo Avance (GPS):</div>
+        <div class="gps-data-val" id="gps-heading">--°</div>
       </div>
-
     </div>
 
   </footer>
-
 
   <script>
 
@@ -877,24 +807,23 @@
 
           let calculatedGpsHeading = null;
 
-          // 1. Intentar obtener el rumbo que proporciona el hardware GPS
+          // 1. Intentar obtener el rumbo del hardware GPS
           if (
             position.coords.heading !== null &&
             !isNaN(position.coords.heading)
           ) {
             calculatedGpsHeading = position.coords.heading;
           } 
-          // 2. Si el hardware no entrega rumbo (o es null), calcular rumbo vectorial entre el punto anterior y actual
+          // 2. Si es null, calcular rumbo vectorial entre el punto anterior y actual
           else if (prevLat !== null && prevLon !== null) {
             const distMoved = calculateDistanceMeters(prevLat, prevLon, currentLat, currentLon);
             
-            // Requerir al menos 2 metros de desplazamiento para evitar variaciones ruidosas estando parado
+            // Requerir al menos 2 metros de desplazamiento
             if (distMoved > 2) {
               calculatedGpsHeading = calculateBearing(prevLat, prevLon, currentLat, currentLon);
             }
           }
 
-          // Si obtuvimos un rumbo válido por movimiento, lo actualizamos
           if (calculatedGpsHeading !== null) {
             currentHeading = calculatedGpsHeading;
             document.getElementById('gps-heading').innerText = `${Math.round(currentHeading)}°`;
@@ -902,7 +831,6 @@
             document.getElementById('gps-heading').innerText = `--° (En espera de avance)`;
           }
 
-          // Guardar posición anterior
           prevLat = currentLat;
           prevLon = currentLon;
 
@@ -919,13 +847,11 @@
 
         },
 
-
         (error) => {
           console.error("Error GPS:", error);
           alert("Error al obtener señal GPS: " + error.message);
           stopGPS();
         },
-
 
         {
           enableHighAccuracy: true,
@@ -1008,7 +934,6 @@
     }
 
 
-    // Calcula rumbo/bearing (0°-360°) de punto A a punto B
     function calculateBearing(lat1, lon1, lat2, lon2) {
       const radLat1 = lat1 * Math.PI / 180;
       const radLat2 = lat2 * Math.PI / 180;
@@ -1023,7 +948,6 @@
     }
 
 
-    // Calcula distancia en metros usando la fórmula de Haversine
     function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
       const R = 6371000;
       const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -1159,11 +1083,9 @@
         return;
       }
 
-      // 1. Calcular Rumbo Geográfico y Distancia hacia el objetivo
       const bearingToTarget = calculateBearing(currentLat, currentLon, foxTargetLat, foxTargetLon);
       const distMeters = calculateDistanceMeters(currentLat, currentLon, foxTargetLat, foxTargetLon);
 
-      // 2. Formatear Distancia
       if (distMeters >= 1000) {
         distVal.innerText = `${(distMeters / 1000).toFixed(2)} km`;
       } else {
@@ -1172,9 +1094,6 @@
 
       bearingVal.innerText = `${Math.round(bearingToTarget)}°`;
 
-      // 3. Ángulo de la aguja relativo al rumbo de avance del coche (GPS COG)
-      // La parte superior del teléfono apuntará al "frente del coche", por lo que:
-      // Ángulo relativo = Rumbo al objetivo - Rumbo actual del coche
       const relativeAngle = bearingToTarget - currentHeading;
 
       if (needle) {
