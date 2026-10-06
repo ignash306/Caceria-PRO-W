@@ -8,6 +8,10 @@
   <!-- JSZip para lectura y descompresión de archivos .kmz -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
+  <!-- Leaflet CSS y JS (Mapa Interactivo) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
     :root {
       --bg-color: #12181b;
@@ -53,20 +57,22 @@
 
     nav {
       display: flex;
-      gap: 8px;
+      gap: 6px;
+      overflow-x: auto;
     }
 
     .nav-btn {
       background: #2c3e50;
       border: 1px solid var(--border-color);
       color: var(--text-color);
-      padding: 8px 12px;
+      padding: 8px 10px;
       border-radius: 6px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
+      white-space: nowrap;
       transition: background 0.2s;
     }
 
@@ -93,6 +99,11 @@
       display: block;
     }
 
+    #tab-mapa.tab-content.active {
+      max-width: 100%;
+      height: 100%;
+    }
+
     .section-card {
       background-color: var(--card-bg);
       border: 1px solid var(--border-color);
@@ -101,13 +112,13 @@
       margin-bottom: 15px;
     }
 
-    /* ESTILOS PARA EL DESPLEGABLE (DETAILS / SUMMARY) */
+    /* ESTILOS PARA DESPLEGABLES (DETAILS / SUMMARY) */
     details.section-card {
       padding: 0;
     }
 
     details.section-card summary {
-      padding: 15px;
+      padding: 12px 15px;
       cursor: pointer;
       user-select: none;
       list-style: none;
@@ -137,7 +148,9 @@
     }
 
     .details-content {
-      padding: 15px;
+      padding: 12px 15px;
+      max-height: 200px;
+      overflow-y: auto;
     }
 
     .section-title {
@@ -225,7 +238,51 @@
       color: #fff;
     }
 
-    /* ESTILOS DE LA BRÚJULA FOX AHEAD */
+    /* ESTILOS DEL CONTROL DE CAPAS EN EL MAPA */
+    .layer-toggle-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.85rem;
+    }
+
+    .layer-toggle-item:last-child {
+      border-bottom: none;
+    }
+
+    .layer-toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .layer-toggle-label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent-color);
+      cursor: pointer;
+    }
+
+    /* MAPA GOOGLE EARTH STYLES */
+    #map-container {
+      width: 100%;
+      height: calc(100vh - 280px);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      z-index: 1;
+    }
+
+    .map-controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    /* BRÚJULA FOX AHEAD */
     .compass-container {
       display: flex;
       justify-content: center;
@@ -434,6 +491,7 @@
       <button class="nav-btn active" onclick="switchTab('direccional', this)">Direccional</button>
       <button class="nav-btn" onclick="switchTab('circulo', this)">Círculo</button>
       <button class="nav-btn" onclick="switchTab('fox', this)">Fox Ahead</button>
+      <button class="nav-btn" onclick="switchTab('mapa', this)">🗺️ Mapa</button>
     </nav>
   </header>
 
@@ -648,7 +706,26 @@
 
     </div>
 
-    <!-- TAB 4: CONFIGURACION -->
+    <!-- TAB 4: MAPA GOOGLE EARTH -->
+    <div id="tab-mapa" class="tab-content">
+
+      <!-- DESPLEGABLE DE CONTROL DE CAPAS GENERADAS -->
+      <details class="section-card" style="margin-bottom: 10px;">
+        <summary class="section-title" style="font-size: 0.9rem;">📁 Capas / Archivos Recientes</summary>
+        <div class="details-content" id="map-layers-list">
+          <p style="font-size: 0.85rem; color: var(--subtext-color);">No hay capas generadas.</p>
+        </div>
+      </details>
+
+      <div class="map-controls">
+        <button class="btn btn-secondary" onclick="centrarMapaGps()">📍 Mi Ubicación</button>
+        <button class="btn btn-danger" onclick="limpiarMapa()">🗑️ Limpiar Dibujos</button>
+      </div>
+
+      <div id="map-container"></div>
+    </div>
+
+    <!-- TAB 5: CONFIGURACION -->
     <div id="tab-config" class="tab-content">
 
       <div class="section-card">
@@ -757,6 +834,59 @@
 
     let recentFiles = [];
 
+    // VARIABLES DEL MAPA LEAFLET
+    let leafletMap = null;
+    let drawnItemsGroup = null;
+    let userMarker = null;
+    let foxTargetMarker = null;
+
+
+    // ============================================================
+    // INICIALIZACIÓN DEL MAPA ESTILO GOOGLE EARTH
+    // ============================================================
+
+    function initMap() {
+      if (leafletMap !== null) return;
+
+      const defaultLat = 40.369790;
+      const defaultLon = -0.180250;
+
+      leafletMap = L.map('map-container').setView([defaultLat, defaultLon], 13);
+
+      // Capa Satélite Híbrida estilo Google Earth
+      L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        attribution: '&copy; Google Earth'
+      }).addTo(leafletMap);
+
+      drawnItemsGroup = L.layerGroup().addTo(leafletMap);
+    }
+
+
+    function centrarMapaGps() {
+      if (leafletMap && currentLat !== null && currentLon !== null) {
+        leafletMap.setView([currentLat, currentLon], 15);
+      } else {
+        alert("GPS no disponible para centrar.");
+      }
+    }
+
+
+    function limpiarMapa() {
+      if (drawnItemsGroup) {
+        drawnItemsGroup.clearLayers();
+      }
+      if (foxTargetMarker) {
+        leafletMap.removeLayer(foxTargetMarker);
+        foxTargetMarker = null;
+      }
+      recentFiles.forEach(f => {
+        f.visible = false;
+      });
+      renderMapLayersControl();
+    }
+
 
     // ============================================================
     // CAMBIO DE PESTAÑA
@@ -778,6 +908,13 @@
 
       if (btnElement) {
         btnElement.classList.add('active');
+      }
+
+      if (tabName === 'mapa') {
+        initMap();
+        setTimeout(() => {
+          leafletMap.invalidateSize();
+        }, 200);
       }
     }
 
@@ -807,18 +944,14 @@
 
           let calculatedGpsHeading = null;
 
-          // 1. Intentar obtener el rumbo del hardware GPS
           if (
             position.coords.heading !== null &&
             !isNaN(position.coords.heading)
           ) {
             calculatedGpsHeading = position.coords.heading;
           } 
-          // 2. Si es null, calcular rumbo vectorial entre el punto anterior y actual
           else if (prevLat !== null && prevLon !== null) {
             const distMoved = calculateDistanceMeters(prevLat, prevLon, currentLat, currentLon);
-            
-            // Requerir al menos 2 metros de desplazamiento
             if (distMoved > 2) {
               calculatedGpsHeading = calculateBearing(prevLat, prevLon, currentLat, currentLon);
             }
@@ -842,7 +975,20 @@
 
           isGpsActive = true;
 
-          // Actualizar brújula Fox Ahead
+          // Actualizar posición en el mapa
+          if (leafletMap) {
+            if (!userMarker) {
+              userMarker = L.circleMarker([currentLat, currentLon], {
+                radius: 8,
+                color: '#2ecc71',
+                fillColor: '#2ecc71',
+                fillOpacity: 0.9
+              }).addTo(leafletMap).bindPopup("Tu Ubicación");
+            } else {
+              userMarker.setLatLng([currentLat, currentLon]);
+            }
+          }
+
           updateFoxCompass();
 
         },
@@ -880,6 +1026,11 @@
       prevLat = null;
       prevLon = null;
 
+      if (userMarker && leafletMap) {
+        leafletMap.removeLayer(userMarker);
+        userMarker = null;
+      }
+
       updateFoxCompass();
     }
 
@@ -890,28 +1041,16 @@
 
     function parseCoordinates(value) {
 
-      if (!value) {
-        return null;
-      }
+      if (!value) return null;
 
-      const parts = value
-        .trim()
-        .split(/\s*,\s*/);
-
-      if (parts.length !== 2) {
-        return null;
-      }
+      const parts = value.trim().split(/\s*,\s*/);
+      if (parts.length !== 2) return null;
 
       const lat = parseFloat(parts[0]);
       const lon = parseFloat(parts[1]);
 
-      if (isNaN(lat) || isNaN(lon)) {
-        return null;
-      }
-
-      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-        return null;
-      }
+      if (isNaN(lat) || isNaN(lon)) return null;
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
 
       return { lat, lon };
     }
@@ -1039,6 +1178,7 @@
 
         setCoordinateInput('fox-target-coords', coords.lat, coords.lon);
         updateFoxCompass();
+        dibujarObjetivoEnMapa(coords.lat, coords.lon);
 
         alert(`Objetivo cargado exitosamente:\nLat: ${coords.lat}\nLon: ${coords.lon}`);
       } catch (err) {
@@ -1056,7 +1196,18 @@
         foxTargetLat = coords.lat;
         foxTargetLon = coords.lon;
         updateFoxCompass();
+        dibujarObjetivoEnMapa(coords.lat, coords.lon);
       }
+    }
+
+
+    function dibujarObjetivoEnMapa(lat, lon) {
+      initMap();
+      if (foxTargetMarker) {
+        leafletMap.removeLayer(foxTargetMarker);
+      }
+      foxTargetMarker = L.marker([lat, lon]).addTo(leafletMap).bindPopup("Objetivo Fox Ahead");
+      leafletMap.setView([lat, lon], 14);
     }
 
 
@@ -1174,20 +1325,23 @@
     }
 
 
-    function downloadKML(fileName, content) {
-      const blob = new Blob([content], { type: 'application/vnd.google-earth.kml+xml' });
-      const url = URL.createObjectURL(blob);
-
+    function registerFileRecord(fileName, content, leafletLayer = null) {
       const fileRecord = {
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         name: fileName,
         date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        content: content
+        content: content,
+        layer: leafletLayer,
+        visible: true
       };
 
       recentFiles.unshift(fileRecord);
       renderRecentFiles();
+      renderMapLayersControl();
 
+      // Descarga automática
+      const blob = new Blob([content], { type: 'application/vnd.google-earth.kml+xml' });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = fileName;
@@ -1199,7 +1353,7 @@
 
 
     // ============================================================
-    // GENERADORES KML
+    // GENERADORES KML Y DIBUJO EN MAPA
     // ============================================================
 
     function generarDireccionalAuto() {
@@ -1208,10 +1362,14 @@
         return;
       }
 
+      initMap();
+
       const length = parseFloat(document.getElementById('cfg-line-length').value) || 1000;
-      const kmlColor = hexToKmlColor(document.getElementById('cfg-line-color').value);
+      const hexColor = document.getElementById('cfg-line-color').value;
+      const kmlColor = hexToKmlColor(hexColor);
       const dest = calculateDestinationPoint(currentLat, currentLon, currentHeading, length);
 
+      // Línea
       const lineName = `Direccional_${countDireccional}.kml`;
       const lineKml =
 `<?xml version="1.0" encoding="UTF-8"?>
@@ -1234,8 +1392,15 @@
   </Document>
 </kml>`;
 
-      downloadKML(lineName, lineKml);
+      const lineLayer = L.polyline([[currentLat, currentLon], [dest.lat, dest.lon]], {
+        color: hexColor,
+        weight: 3
+      }).bindPopup(lineName);
 
+      drawnItemsGroup.addLayer(lineLayer);
+      registerFileRecord(lineName, lineKml, lineLayer);
+
+      // Punto
       const pointName = `Punto_${countPunto}.kml`;
       const pointKml =
 `<?xml version="1.0" encoding="UTF-8"?>
@@ -1251,7 +1416,15 @@
   </Document>
 </kml>`;
 
-      downloadKML(pointName, pointKml);
+      const pointLayer = L.circleMarker([dest.lat, dest.lon], {
+        radius: 6,
+        color: hexColor,
+        fillColor: hexColor,
+        fillOpacity: 0.8
+      }).bindPopup(pointName);
+
+      drawnItemsGroup.addLayer(pointLayer);
+      registerFileRecord(pointName, pointKml, pointLayer);
 
       countDireccional++;
       countPunto++;
@@ -1267,9 +1440,13 @@
         return;
       }
 
-      const kmlColor = hexToKmlColor(document.getElementById('cfg-line-color').value);
-      const lineName = `Direccional_${countDireccional}.kml`;
+      initMap();
 
+      const hexColor = document.getElementById('cfg-line-color').value;
+      const kmlColor = hexToKmlColor(hexColor);
+
+      // Línea
+      const lineName = `Direccional_${countDireccional}.kml`;
       const lineKml =
 `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
@@ -1291,8 +1468,15 @@
   </Document>
 </kml>`;
 
-      downloadKML(lineName, lineKml);
+      const lineLayer = L.polyline([[start.lat, start.lon], [dest.lat, dest.lon]], {
+        color: hexColor,
+        weight: 3
+      }).bindPopup(lineName);
 
+      drawnItemsGroup.addLayer(lineLayer);
+      registerFileRecord(lineName, lineKml, lineLayer);
+
+      // Punto
       const pointName = `Punto_${countPunto}.kml`;
       const pointKml =
 `<?xml version="1.0" encoding="UTF-8"?>
@@ -1308,7 +1492,17 @@
   </Document>
 </kml>`;
 
-      downloadKML(pointName, pointKml);
+      const pointLayer = L.circleMarker([dest.lat, dest.lon], {
+        radius: 6,
+        color: hexColor,
+        fillColor: hexColor,
+        fillOpacity: 0.8
+      }).bindPopup(pointName);
+
+      drawnItemsGroup.addLayer(pointLayer);
+      registerFileRecord(pointName, pointKml, pointLayer);
+
+      leafletMap.setView([start.lat, start.lon], 13);
 
       countDireccional++;
       countPunto++;
@@ -1325,7 +1519,10 @@
         return;
       }
 
-      const kmlColor = hexToKmlColor(document.getElementById('cfg-line-color').value);
+      initMap();
+
+      const hexColor = document.getElementById('cfg-line-color').value;
+      const kmlColor = hexToKmlColor(hexColor);
       let coordPairs = [];
 
       for (let i = 0; i <= 360; i += 5) {
@@ -1357,13 +1554,70 @@ ${coordPairs.join('\n')}
   </Document>
 </kml>`;
 
-      downloadKML(circleName, circleKml);
+      const circleLayer = L.circle([center.lat, center.lon], {
+        radius: radiusMeters,
+        color: hexColor,
+        fillColor: hexColor,
+        fillOpacity: 0.15,
+        weight: 2
+      }).bindPopup(circleName);
+
+      drawnItemsGroup.addLayer(circleLayer);
+      registerFileRecord(circleName, circleKml, circleLayer);
+
+      leafletMap.setView([center.lat, center.lon], 13);
+
       countCirculo++;
     }
 
 
     // ============================================================
-    // ARCHIVOS RECIENTES
+    // CONTROL DE VISIBILIDAD DE CAPAS (EN MAPA)
+    // ============================================================
+
+    function renderMapLayersControl() {
+      const container = document.getElementById('map-layers-list');
+      if (!container) return;
+
+      const filesWithLayers = recentFiles.filter(f => f.layer !== null && f.layer !== undefined);
+
+      if (filesWithLayers.length === 0) {
+        container.innerHTML = '<p style="font-size: 0.85rem; color: var(--subtext-color);">No hay capas generadas.</p>';
+        return;
+      }
+
+      container.innerHTML = filesWithLayers.map(file => `
+        <div class="layer-toggle-item">
+          <label class="layer-toggle-label">
+            <input 
+              type="checkbox" 
+              ${file.visible ? 'checked' : ''} 
+              onchange="toggleLayerVisibility(${file.id}, this.checked)"
+            >
+            <span>${file.name}</span>
+          </label>
+          <span style="font-size: 0.75rem; color: var(--subtext-color);">${file.date}</span>
+        </div>
+      `).join('');
+    }
+
+
+    function toggleLayerVisibility(fileId, isVisible) {
+      const file = recentFiles.find(f => f.id === fileId);
+      if (!file || !file.layer || !drawnItemsGroup) return;
+
+      file.visible = isVisible;
+
+      if (isVisible) {
+        drawnItemsGroup.addLayer(file.layer);
+      } else {
+        drawnItemsGroup.removeLayer(file.layer);
+      }
+    }
+
+
+    // ============================================================
+    // ARCHIVOS RECIENTES (SESIÓN)
     // ============================================================
 
     function renderRecentFiles() {
@@ -1407,8 +1661,13 @@ ${coordPairs.join('\n')}
 
 
     function deleteRecentFile(id) {
+      const file = recentFiles.find(f => f.id === id);
+      if (file && file.layer && drawnItemsGroup) {
+        drawnItemsGroup.removeLayer(file.layer);
+      }
       recentFiles = recentFiles.filter(f => f.id !== id);
       renderRecentFiles();
+      renderMapLayersControl();
     }
 
   </script>
