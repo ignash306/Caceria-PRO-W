@@ -106,7 +106,6 @@
       margin-bottom: 15px;
     }
 
-    /* ESTILOS PARA DESPLEGABLES (DETAILS / SUMMARY) */
     details.section-card {
       padding: 0;
     }
@@ -143,8 +142,6 @@
 
     .details-content {
       padding: 12px 15px;
-      max-height: 200px;
-      overflow-y: auto;
     }
 
     .section-title {
@@ -232,7 +229,6 @@
       color: #fff;
     }
 
-    /* ESTILOS DEL CONTROL DE CAPAS EN EL MAPA */
     .layer-toggle-item {
       display: flex;
       align-items: center;
@@ -261,7 +257,6 @@
       cursor: pointer;
     }
 
-    /* MAPA GOOGLE EARTH STYLES */
     #map-container {
       width: 100%;
       height: calc(100vh - 280px);
@@ -276,7 +271,6 @@
       margin-bottom: 10px;
     }
 
-    /* BRÚJULA FOX AHEAD */
     .compass-container {
       display: flex;
       justify-content: center;
@@ -622,11 +616,17 @@
     <!-- TAB 3: FOX AHEAD -->
     <div id="tab-fox" class="tab-content">
 
-      <!-- DESPLEGABLE DE SELECCIÓN DE OBJETIVO -->
       <details class="section-card">
         <summary class="section-title">• Selección de Objetivo</summary>
         
         <div class="details-content">
+          <div class="input-group">
+            <label>Seleccionar de Puntos Generados (Punto_*)</label>
+            <select id="fox-recent-select" onchange="seleccionarPuntoRecienteFox(this.value)">
+              <option value="">-- No hay puntos generados --</option>
+            </select>
+          </div>
+
           <div class="input-group">
             <label>Cargar Punto Objetivo desde KML / KMZ</label>
             <input
@@ -701,7 +701,6 @@
     <!-- TAB 4: MAPA GOOGLE EARTH -->
     <div id="tab-mapa" class="tab-content">
 
-      <!-- DESPLEGABLE DE CONTROL DE CAPAS GENERADAS -->
       <details class="section-card" style="margin-bottom: 10px;">
         <summary class="section-title" style="font-size: 0.9rem;">📁 Capas / Archivos Recientes</summary>
         <div class="details-content" id="map-layers-list">
@@ -816,7 +815,6 @@
     let watchPositionId = null;
     let isGpsActive = false;
 
-    // Coordenadas objetivo para Fox Ahead
     let foxTargetLat = null;
     let foxTargetLon = null;
 
@@ -826,16 +824,11 @@
 
     let recentFiles = [];
 
-    // VARIABLES DEL MAPA LEAFLET
     let leafletMap = null;
     let drawnItemsGroup = null;
     let userMarker = null;
     let foxTargetMarker = null;
 
-
-    // ============================================================
-    // INICIALIZACIÓN DEL MAPA ESTILO GOOGLE EARTH
-    // ============================================================
 
     function initMap() {
       if (leafletMap !== null) return;
@@ -845,7 +838,6 @@
 
       leafletMap = L.map('map-container').setView([defaultLat, defaultLon], 13);
 
-      // Capa Satélite Híbrida estilo Google Earth
       L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
@@ -880,10 +872,6 @@
     }
 
 
-    // ============================================================
-    // CAMBIO DE PESTAÑA
-    // ============================================================
-
     function switchTab(tabName, btnElement) {
 
       document
@@ -915,10 +903,6 @@
       switchTab('config', null);
     }
 
-
-    // ============================================================
-    // GPS
-    // ============================================================
 
     function startGPS() {
 
@@ -967,7 +951,6 @@
 
           isGpsActive = true;
 
-          // Actualizar posición en el mapa
           if (leafletMap) {
             if (!userMarker) {
               userMarker = L.circleMarker([currentLat, currentLon], {
@@ -1026,10 +1009,6 @@
       updateFoxCompass();
     }
 
-
-    // ============================================================
-    // COORDENADAS Y CÁLCULOS
-    // ============================================================
 
     function parseCoordinates(value) {
 
@@ -1093,10 +1072,6 @@
     }
 
 
-    // ============================================================
-    // LECTOR KML / KMZ
-    // ============================================================
-
     async function readKmlOrKmzFile(file) {
 
       const fileName = file.name.toLowerCase();
@@ -1155,10 +1130,6 @@
     }
 
 
-    // ============================================================
-    // FOX AHEAD LOGIC
-    // ============================================================
-
     async function cargarArchivoFox(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -1190,6 +1161,56 @@
         updateFoxCompass();
         dibujarObjetivoEnMapa(coords.lat, coords.lon);
       }
+    }
+
+
+    function seleccionarPuntoRecienteFox(fileId) {
+      if (!fileId) return;
+
+      const file = recentFiles.find(f => f.id == fileId);
+      if (!file) return;
+
+      let lat = file.coords ? file.coords.lat : null;
+      let lon = file.coords ? file.coords.lon : null;
+
+      if (lat === null || lon === null) {
+        try {
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(file.content, "text/xml");
+          const coordsElem = xmlDoc.getElementsByTagName("coordinates")[0];
+          if (coordsElem) {
+            const firstCoordStr = coordsElem.textContent.trim().split(/\s+/)[0].split(',');
+            lon = parseFloat(firstCoordStr[0]);
+            lat = parseFloat(firstCoordStr[1]);
+          }
+        } catch (e) {
+          console.error("Error al extraer coordenadas del KML:", e);
+        }
+      }
+
+      if (lat !== null && lon !== null) {
+        foxTargetLat = lat;
+        foxTargetLon = lon;
+        setCoordinateInput('fox-target-coords', lat, lon);
+        updateFoxCompass();
+        dibujarObjetivoEnMapa(lat, lon);
+      }
+    }
+
+
+    function renderFoxRecentSelect() {
+      const select = document.getElementById('fox-recent-select');
+      if (!select) return;
+
+      const puntoFiles = recentFiles.filter(f => f.name.toLowerCase().includes('punto_'));
+
+      if (puntoFiles.length === 0) {
+        select.innerHTML = '<option value="">-- No hay puntos generados --</option>';
+        return;
+      }
+
+      select.innerHTML = '<option value="">-- Seleccionar punto generado --</option>' +
+        puntoFiles.map(file => `<option value="${file.id}">${file.name} (${file.date})</option>`).join('');
     }
 
 
@@ -1245,10 +1266,6 @@
     }
 
 
-    // ============================================================
-    // CARGAR DESTINO / CENTRO
-    // ============================================================
-
     async function cargarArchivoDestino(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -1276,10 +1293,6 @@
       }
     }
 
-
-    // ============================================================
-    // CALCULAR DESTINO (LÍNEA DIRECCIONAL)
-    // ============================================================
 
     function calculateDestinationPoint(lat, lon, brng, distanceMeters) {
       const R = 6371000;
@@ -1317,13 +1330,14 @@
     }
 
 
-    function registerFileRecord(fileName, content, leafletLayer = null) {
+    function registerFileRecord(fileName, content, leafletLayer = null, coords = null) {
       const fileRecord = {
         id: Date.now() + Math.random(),
         name: fileName,
         date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         content: content,
         layer: leafletLayer,
+        coords: coords,
         visible: true
       };
 
@@ -1331,7 +1345,6 @@
       renderRecentFiles();
       renderMapLayersControl();
 
-      // Descarga automática
       const blob = new Blob([content], { type: 'application/vnd.google-earth.kml+xml' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1343,10 +1356,6 @@
       URL.revokeObjectURL(url);
     }
 
-
-    // ============================================================
-    // GENERADORES KML Y DIBUJO EN MAPA
-    // ============================================================
 
     function generarDireccionalAuto() {
       if (!isGpsActive || currentLat === null) {
@@ -1361,7 +1370,6 @@
       const kmlColor = hexToKmlColor(hexColor);
       const dest = calculateDestinationPoint(currentLat, currentLon, currentHeading, length);
 
-      // Línea
       const lineName = `Direccional_${countDireccional}.kml`;
       const lineKml =
 `<?xml version="1.0" encoding="UTF-8"?>
@@ -1392,7 +1400,6 @@
       drawnItemsGroup.addLayer(lineLayer);
       registerFileRecord(lineName, lineKml, lineLayer);
 
-      // Punto
       const pointName = `Punto_${countPunto}.kml`;
       const pointKml =
 `<?xml version="1.0" encoding="UTF-8"?>
@@ -1416,7 +1423,7 @@
       }).bindPopup(pointName);
 
       drawnItemsGroup.addLayer(pointLayer);
-      registerFileRecord(pointName, pointKml, pointLayer);
+      registerFileRecord(pointName, pointKml, pointLayer, { lat: dest.lat, lon: dest.lon });
 
       countDireccional++;
       countPunto++;
@@ -1437,7 +1444,6 @@
       const hexColor = document.getElementById('cfg-line-color').value;
       const kmlColor = hexToKmlColor(hexColor);
 
-      // Línea
       const lineName = `Direccional_${countDireccional}.kml`;
       const lineKml =
 `<?xml version="1.0" encoding="UTF-8"?>
@@ -1468,7 +1474,6 @@
       drawnItemsGroup.addLayer(lineLayer);
       registerFileRecord(lineName, lineKml, lineLayer);
 
-      // Punto
       const pointName = `Punto_${countPunto}.kml`;
       const pointKml =
 `<?xml version="1.0" encoding="UTF-8"?>
@@ -1492,7 +1497,7 @@
       }).bindPopup(pointName);
 
       drawnItemsGroup.addLayer(pointLayer);
-      registerFileRecord(pointName, pointKml, pointLayer);
+      registerFileRecord(pointName, pointKml, pointLayer, { lat: dest.lat, lon: dest.lon });
 
       leafletMap.setView([start.lat, start.lon], 13);
 
@@ -1549,23 +1554,18 @@ ${coordPairs.join('\n')}
       const circleLayer = L.circle([center.lat, center.lon], {
         radius: radiusMeters,
         color: hexColor,
-        fillColor: hexColor,
-        fillOpacity: 0.15,
+        fill: false,
         weight: 2
       }).bindPopup(circleName);
 
       drawnItemsGroup.addLayer(circleLayer);
-      registerFileRecord(circleName, circleKml, circleLayer);
+      registerFileRecord(circleName, circleKml, circleLayer, { lat: center.lat, lon: center.lon });
 
       leafletMap.setView([center.lat, center.lon], 13);
 
       countCirculo++;
     }
 
-
-    // ============================================================
-    // CONTROL DE VISIBILIDAD DE CAPAS (EN MAPA)
-    // ============================================================
 
     function renderMapLayersControl() {
       const container = document.getElementById('map-layers-list');
@@ -1608,31 +1608,28 @@ ${coordPairs.join('\n')}
     }
 
 
-    // ============================================================
-    // ARCHIVOS RECIENTES (SESIÓN)
-    // ============================================================
-
     function renderRecentFiles() {
       const listContainer = document.getElementById('recent-files-list');
 
       if (recentFiles.length === 0) {
         listContainer.innerHTML =
           '<p style="font-size: 0.85rem; color: var(--subtext-color);">No se han generado archivos aún.</p>';
-        return;
+      } else {
+        listContainer.innerHTML = recentFiles.map((file) => `
+          <div class="recent-item">
+            <div class="recent-info">
+              <span class="recent-title">${file.name}</span>
+              <span class="recent-date">${file.date}</span>
+            </div>
+            <div class="recent-actions">
+              <button class="btn icon-btn" onclick="reDownloadFile(${file.id})">ABRIR</button>
+              <button class="btn btn-danger icon-btn" onclick="deleteRecentFile(${file.id})">🗑</button>
+            </div>
+          </div>
+        `).join('');
       }
 
-      listContainer.innerHTML = recentFiles.map((file) => `
-        <div class="recent-item">
-          <div class="recent-info">
-            <span class="recent-title">${file.name}</span>
-            <span class="recent-date">${file.date}</span>
-          </div>
-          <div class="recent-actions">
-            <button class="btn icon-btn" onclick="reDownloadFile(${file.id})">ABRIR</button>
-            <button class="btn btn-danger icon-btn" onclick="deleteRecentFile(${file.id})">🗑</button>
-          </div>
-        </div>
-      `).join('');
+      renderFoxRecentSelect();
     }
 
 
